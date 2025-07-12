@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pentomino Solver</title>
+    <link rel="icon" type="image/x-icon" href="fav.ico">
+</head>
+
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+    const {useState, useEffect} = React;
+
+    const pentominoes = {
+        P: "P",
+        L: "L",
+        F: "F",
+        N: "N",
+        T: "T",
+        Y: "Y",
+        U: "U",
+        Z: "Z",
+        V: "V",
+        W: "W",
+        X: "X",
+        I: "I"
+    };
+
+    const pentominoShapes = {
+        P: [[0, 0], [0, 1], [1, 0], [1, 1], [1, 2]], // Example P-shape
+        L: [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2]], // Example L-shape
+        F: [[0, 1], [1, 0], [1, 1], [1, 2], [2, 0]], // Example F-shape
+        N: [[0, 2], [1, 0], [1, 1], [2, 1], [2, 2]], // Example N-shape
+        T: [[0, 0], [0, 1], [0, 2], [1, 1], [2, 1]], // Example T-shape
+        Y: [[0, 1], [1, 1], [2, 1], [3, 1], [3, 0]], // Example Y-shape
+        U: [[0, 0], [0, 2], [1, 0], [1, 1], [1, 2]], // Example U-shape
+        Z: [[0, 0], [1, 0], [1, 1], [2, 1], [2, 2]], // Example Z-shape
+        V: [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2]], // Example V-shape
+        W: [[0, 0], [1, 0], [1, 1], [2, 1], [2, 2]], // Example W-shape
+        X: [[1, 0], [0, 1], [1, 1], [1, 2], [2, 1]], // Example X-shape
+        I: [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0]], // Example I-shape
+    };
+    const colors = {
+        P: "#ff0000", // Bold Red
+        L: "#ff7f00", // Bold Orange
+        F: "#ffff00", // Bright Yellow
+        N: "#00ff00", // Bright Green
+        T: "#00ffff", // Bright Cyan
+        Y: "#007fff", // Bold Blue
+        U: "#0000ff", // Bright Blue
+        Z: "#8b00ff", // Bold Purple
+        V: "#ff00ff", // Bold Magenta
+        W: "#ff1493", // Bright Pink
+        X: "#4b0082", // Indigo
+        I: "#800000",  // Bold Maroon
+        x: "#000000"  //
+    };
+
+
+    const pastel_colors = {
+        P: "#ffb2b3", // Pastel Red
+        L: "#ffcc98", // Pastel Orange
+        F: "#ffffcc", // Pastel Yellow
+        N: "#b2ffcc", // Pastel Green
+        T: "#ccffff", // Pastel Cyan
+        Y: "#b2d9ff", // Pastel Blue
+        U: "#b2b3ff", // Pastel Light Blue
+        Z: "#dab2ff", // Pastel Purple
+        V: "#ffb2e6", // Pastel Magenta
+        W: "#ffb2d9", // Pastel Pink
+        X: "#c3b3ff", // Pastel Indigo
+        I: "#d8b3b3",  // Pastel Maroon
+        x: "#000000"  //
+    };
+
+    const App = () => {
+        const [gridSize, setGridSize] = useState({rows: 5, cols: 10});
+        const [grid, setGrid] = useState([]);
+        const [selectedPentominoes, setSelectedPentominoes] = useState(Object.keys(pentominoes)); // All selected by default
+        const [exclusions, setExclusions] = useState([]);
+        const [solveEnabled, setSolveEnabled] = useState(false);
+        const [isSolving, setIsSolving] = useState(false);
+
+        // Initialize the grid
+        useEffect(() => {
+            const newGrid = Array.from({length: gridSize.rows}, () =>
+                Array(gridSize.cols).fill(0)
+            );
+            setGrid(newGrid);
+            setExclusions([]);
+            setSolveEnabled(false);
+        }, [gridSize]);
+
+        // Update solve button state
+        useEffect(() => {
+            const totalCells = gridSize.rows * gridSize.cols;
+            const freeCells = totalCells - exclusions.length;
+            setSolveEnabled(freeCells % 5 === 0 && freeCells > 0);
+        }, [gridSize, exclusions]);
+
+        const handleGridSizeChange = (type, value) => {
+            const newSize = {...gridSize, [type]: parseInt(value)};
+            setGridSize(newSize);
+        };
+
+        const togglePentominoSelection = (pentomino) => {
+            setSelectedPentominoes((prev) =>
+                prev.includes(pentomino)
+                    ? prev.filter((p) => p !== pentomino)
+                    : [...prev, pentomino]
+            );
+        };
+
+        const toggleExclusion = (row, col) => {
+            if (isSolving) return;
+
+            setExclusions((prev) => {
+                const index = prev.findIndex(
+                    (exclusion) => exclusion.row === row && exclusion.col === col
+                );
+                if (index === -1) {
+                    return [...prev, {row, col}];
+                } else {
+                    return prev.filter((_, i) => i !== index);
+                }
+            });
+        };
+
+        const handleSolve = async () => {
+            if (!solveEnabled || isSolving) return;
+
+            setIsSolving(true);
+            // Lock UI while solving; should call the pentomino solve API after sending
+            // current grid state.
+            const response = await fetch('/sessions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    grid: grid,
+                    selectedPentominoes: selectedPentominoes,
+                    exclusions: exclusions
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to start solving session.');
+            }
+
+            const response_json = await response.json();
+            const sessionId = response_json.session_id;
+
+            const response_solve = await fetch(`/sessions/${sessionId}/solve`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            if (!response_solve.ok) {
+                throw new Error('Error during solving.');
+            }
+
+
+            // Call the progress API periodically
+            const intervalId = setInterval(async () => {
+                try {
+                    const progressResponse = await fetch(`/sessions/${sessionId}/progress`);
+
+                    const {
+                        grid: updatedGrid,
+                        solved: status,
+                        total_solutions_evaluated: tries
+                    } = await progressResponse.json();
+                    // Update the grid on the UI
+
+
+                    const coloredGrid = updatedGrid.map((row, rowIndex) =>
+                        row.map((cell, colIndex) => {
+                            const cellElement = document.getElementById(`cell-${rowIndex}-${colIndex}`);
+                            if (cellElement) {
+                                if (cell === '.') {
+                                    cellElement.style.backgroundColor = 'white';
+                                } else if (cell === 'x') {
+                                    cellElement.style.backgroundColor = 'black';
+                                } else {
+                                    cellElement.style.backgroundColor = colors[cell] || 'gray'; // Use colors from the palette or fallback to gray
+                                }
+                            } else {
+                                console.warn(`Cell element not found: cell-${rowIndex}-${colIndex}`);
+                            }
+                            return cell;
+                        })
+                    );
+                   
+                    setGrid(coloredGrid);
+                    // Stop updating if the solution is complete
+                    if (status) {
+                        clearInterval(intervalId);
+                        setIsSolving(false);
+                    }
+                } catch (err) {
+                    console.error('Error during progress update:', err);
+                    clearInterval(intervalId);
+                    setIsSolving(false);
+                }
+
+            }, 100); // Check progress every second
+
+        };
+
+        const handleCancel = () => {
+            setIsSolving(false);
+            // Unlock UI; reset state if needed
+        };
+
+        return (
+            <div>
+                <div>
+                    <h1>Pentomino Solver</h1>
+
+                    {/* Grid size controls */}
+                    <div>
+                        <label>
+                            Rows:
+                            <input
+                                type="number"
+                                value={gridSize.rows}
+                                onChange={(e) =>
+                                    handleGridSizeChange("rows", e.target.value)
+                                }
+                                disabled={isSolving}
+                            />
+                        </label>
+                        <label>
+                            Columns:
+                            <input
+                                type="number"
+                                value={gridSize.cols}
+                                onChange={(e) =>
+                                    handleGridSizeChange("cols", e.target.value)
+                                }
+                                disabled={isSolving}
+                                />
+                        </label>
+                    </div>
+
+
+
+                    {/* Pentomino selector */}
+                    <div>
+                        <h2>Select Pentominoes</h2>
+                        <p>
+                            Select the pentominoes you want to solve. Minimum required:{" "}
+                            {Math.floor((gridSize.rows * gridSize.cols - exclusions.length) / 5)}.
+                        </p>
+                        <div style={{display: "flex", flexWrap: "wrap"}}>
+                            {Object.keys(pentominoes).map((pentomino) => {
+                                const shapes = {
+                                    P: [
+                                        [1, 1],
+                                        [1, 1],
+                                        [1, 0],
+                                    ],
+                                    L: [
+                                        [1, 0],
+                                        [1, 0],
+                                        [1, 0],
+                                        [1, 1],
+                                    ],
+                                    F: [
+                                        [0, 1, 1],
+                                        [1, 1, 0],
+                                        [0, 1, 0],
+                                    ],
+                                    N: [
+                                        [0, 1],
+                                        [0, 1],
+                                        [1, 1],
+                                        [1, 0],
+                                    ],
+                                    T: [
+                                        [1, 1, 1],
+                                        [0, 1, 0],
+                                        [0, 1, 0],
+                                    ],
+                                    Y: [
+                                        [0, 1],
+                                        [1, 1],
+                                        [0, 1],
+                                        [0, 1],
+                                    ],
+                                    U: [
+                                        [1, 0, 1],
+                                        [1, 1, 1],
+                                    ],
+                                    Z: [
+                                        [1, 1, 0],
+                                        [0, 1, 0],
+                                        [0, 1, 1],
+                                    ],
+                                    V: [
+                                        [1, 0, 0],
+                                        [1, 0, 0],
+                                        [1, 1, 1],
+                                    ],
+                                    W: [
+                                        [1, 0, 0],
+                                        [1, 1, 0],
+                                        [0, 1, 1],
+                                    ],
+                                    X: [
+                                        [0, 1, 0],
+                                        [1, 1, 1],
+                                        [0, 1, 0],
+                                    ],
+                                    I: [
+                                        [1],
+                                        [1],
+                                        [1],
+                                        [1],
+                                        [1],
+                                    ],
+                                };
+                                const isSelected = selectedPentominoes.includes(pentomino);
+                                const colorPalette = isSelected ? colors : pastel_colors;
+                                return (
+                                    <div
+                                        key={`shape-${pentomino}`}
+                                        style={{
+                                            margin: "10px",
+                                            cursor: "pointer",
+                                            opacity: isSelected ? 1 : 0.5,
+                                            border: isSelected ? "2px solid #000" : "2px dashed #ccc",
+                                            padding: "5px",
+                                            borderRadius: "5px",
+                                        }}
+                                        onClick={() => togglePentominoSelection(pentomino)}
+                                    >
+                                        <h4 style={{textAlign: "center"}}>{pentomino}</h4>
+                                        <div
+                                            style={{
+                                                display: "grid",
+                                                gridTemplateColumns: `repeat(${shapes[pentomino][0].length}, 20px)`,
+                                                gap: "2px",
+                                            }}
+                                        >
+                                            {shapes[pentomino].map((row, rowIndex) =>
+                                                row.map((cell, cellIndex) => (
+                                                    <div
+                                                        key={`${pentomino}-${rowIndex}-${cellIndex}`}
+                                                        style={{
+                                                            width: "20px",
+                                                            height: "20px",
+                                                            backgroundColor: cell
+                                                                ? colorPalette[pentomino]
+                                                                : "transparent",
+                                                            border: cell ? "1px solid #ddd" : "none",
+                                                        }}
+                                                    ></div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Grid */}
+                <div>
+                    <h2>Grid</h2>
+                    <div
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: `repeat(${gridSize.cols}, 40px)`,
+                            gap: "2px",
+                        }}
+                    >
+                        
+                        {grid.map((row, rowIndex) =>
+                            row.map((_, colIndex) => {
+                                const isExcluded = exclusions.some(
+                                    (exclusion) =>
+                                        exclusion.row === rowIndex &&
+                                        exclusion.col === colIndex
+                                );
+                                return (
+                                    <div
+                                        id={`cell-${rowIndex}-${colIndex}`}
+                                        key={`${rowIndex}-${colIndex}`}
+                                        onClick={() =>
+                                            toggleExclusion(
+                                                rowIndex,
+                                                colIndex
+                                            )
+                                        }
+                                        style={{
+                                            width: "40px",
+                                            height: "40px",
+                                            backgroundColor: isExcluded
+                                                ? "black"
+                                                : "#fff",
+                                            border: "1px solid #ddd",
+                                            cursor: isSolving
+                                                ? "default"
+                                                : "pointer",
+                                        }}
+                                    ></div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+
+                {/* Exclusion list */}
+                <div>
+                    <h3>Exclusions</h3>
+                    <p>
+                        Click on a cell to exclude it from the solution.
+                    </p>
+                    <p>
+                        Exclusions required: {(gridSize.rows * gridSize.cols) % 5 }
+                    </p>
+                    <ul>
+                        {exclusions.map(({row, col}) => (
+                            <li key={`${row}-${col}`}>
+                                Row: {row + 1}, Col: {col + 1}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+
+                {/* Solve / Cancel buttons */}
+                <div>
+                    <button
+                        onClick={handleSolve}
+                        disabled={!solveEnabled || isSolving}
+                    >
+                        Solve
+                    </button>
+                    {isSolving && (
+                        <button onClick={handleCancel}>Cancel</button>
+                    )}
+                </div>
+            </div>
+        )
+    };
+
+    ReactDOM.render(<App/>, document.getElementById("root"));
+
+</script>
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</body>
+
+</html>

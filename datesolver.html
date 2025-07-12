@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="fav.ico">
+    <title>Pentomino Solver</title>
+    <style>
+        .no-select {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+    </style>
+</head>
+
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+    const {useState, useEffect} = React;
+
+    const empty = "   "
+    const dow = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
+    const day = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"]
+    const month = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+
+    const grid_text = [
+        [month[0], month[1], month[2], month[3], day[0], day[1], day[2], dow[1], dow[2],],
+        [month[4], day[3], day[4], day[5], day[6], day[7], day[8], dow[3], empty,],
+        [month[5], day[9], day[10], day[11], day[12], day[30], day[14], dow[4], empty,],
+        [month[6], day[15], day[16], day[17], day[18], day[19], day[20], dow[5], dow[6],],
+        [month[7], day[21], day[22], day[23], day[24], day[25], day[26], empty, dow[0],],
+        [month[8], month[9], month[10], month[11], day[27], day[28], day[29], day[13], empty,],
+    ]
+
+    const pentominoes = {
+        P: "P",
+        L: "L",
+        F: "F",
+        N: "N",
+        T: "T",
+        Y: "Y",
+        U: "U",
+        Z: "Z",
+        V: "V",
+        W: "W",
+        X: "X",
+        I: "I"
+    };
+
+    const pentominoShapes = {
+        P: [
+            [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1]], // Vertical default
+            [[1, 1], [1, 0], [2, 0], [2, 1], [2, 2]], // 90°
+            [[1, 0], [2, 0], [0, 1], [1, 1], [2, 1]], // 180° 
+            [[0, 0], [0, 1], [0, 2], [1, 1], [1, 2]], // 270°
+            // // Flipped variations (commented out)
+            // [[0, 0], [1, 0], [1, 1], [1, 2], [0, 2]],
+            // [[0, 0], [0, 1], [1, 1], [2, 0], [2, 1]],
+            // [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1]],
+            // [[0, 0], [1, 0], [2, 0], [2, 1], [0, 1]]
+        ],
+        I: [
+            [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0]], // Vertical
+            [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4]]  // Horizontal
+        ],
+        L: [
+            [[0, 1], [1, 1], [2, 1], [3, 1], [3, 0]], // Vertical default
+            [[0, 0], [0, 1], [0, 2], [0, 3], [1, 3]], // 90°
+            [[0, 0], [1, 0], [2, 0], [3, 0], [0, 1]], // 180°
+            [[0, 0], [1, 0], [1, 1], [1, 2], [1, 3]], // 270°
+            // // Flipped variations (commented out)
+            // [[0, 0], [0, 1], [0, 2], [1, 0], [2, 0]],
+            // [[0, 0], [1, 0], [1, 1], [1, 2], [2, 2]],
+            // [[2, 0], [2, 1], [2, 2], [1, 2], [0, 2]],
+            // [[0, 2], [0, 1], [0, 0], [1, 2], [2, 2]]
+        ],
+        F: [
+            [[0, 0], [1, 0], [1, 1], [2, 1], [1, 2]], // Vertical default
+            [[2, 0], [0, 1], [1, 1], [1, 2], [2, 1]], // 90°
+            [[1, 0], [0, 1], [1, 1], [1, 2], [2, 2]], // 180°
+            [[1, 0], [0, 1], [1, 1], [2, 1], [0, 2]], // 270° X
+            // Flipped variations (active)
+            [[0, 0], [0, 1], [1, 1], [2, 1], [1, 2]], // Flipped vertical
+            [[1, 0], [2, 0], [0, 1], [1, 1], [1, 2]], // Flipped 90° X
+            [[1, 0], [0, 1], [1, 1], [2, 1], [2, 2]], // Flipped 180°
+            [[1, 0], [1, 1], [2, 1], [0, 2], [1, 2]]  // Flipped 270°
+        ],
+        N: [
+            [[0, 1], [1, 1], [2, 1], [2, 0], [3, 0]], // Vertical default
+            [[0, 0], [0, 1], [0, 2], [1, 2], [1, 3]], // 90°
+            [[0, 1], [1, 1], [1, 0], [2, 0], [3, 0]], // 180°
+            [[0, 0], [0, 1], [1, 1], [1, 2], [1, 3]], // 270°
+            // // Flipped variations (commented out)
+            // [[0, 1], [1, 1], [2, 1], [2, 0], [3, 0]],
+            // [[0, 0], [0, 1], [0, 2], [1, 2], [1, 3]],
+            // [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1]],
+            // [[1, 0], [1, 1], [1, 2], [0, 2], [0, 3]]
+        ],
+        T: [
+            [[0, 0], [1, 0], [2, 0], [1, 1], [1, 2]], // Vertical default
+            [[0, 1], [2, 0], [1, 1], [2, 1], [2, 2]], // 90°
+            [[0, 2], [1, 0], [1, 1], [1, 2], [2, 2]], // 180°
+            [[0, 0], [0, 1], [0, 2], [1, 1], [2, 1]], // 270°
+            // // Flipped variations (commented out)
+            // [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]],
+            // [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]],
+            // [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]],
+            // [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]]
+        ],
+        Y: [
+            [[0, 0], [1, 0], [2, 0], [3, 0], [1, 1]], // Vertical default
+            [[1, 0], [0, 1], [1, 1], [1, 2], [1, 3]], // 90°
+            [[2, 0], [0, 1], [1, 1], [2, 1], [3, 1]], // 180°
+            [[0, 0], [0, 1], [0, 2], [1, 2], [0, 3]], // 270°
+            // // Flipped variations (commented out)
+            // [[1, 0], [0, 0], [2, 0], [3, 0], [1, 1]],
+            // [[0, 1], [0, 0], [0, 2], [0, 3], [1, 1]],
+            // [[1, 1], [0, 0], [1, 0], [2, 0], [3, 0]],
+            // [[0, 2], [0, 1], [0, 0], [0, 3], [1, 1]]
+        ],
+        U: [
+            [[0, 0], [1, 0], [2, 0], [0, 1], [2, 1]], // Vertical default
+            [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2]], // 90°
+            [[0, 0], [2, 0], [0, 1], [1, 1], [2, 1]], // 180°
+            [[0, 0], [0, 1], [0, 2], [1, 2], [1, 0]], // 270°
+            // // Flipped variations (commented out)
+            // [[0, 0], [0, 1], [1, 1], [2, 0], [2, 1]],
+            // [[0, 0], [1, 0], [0, 2], [1, 2], [0, 1]],
+            // [[0, 0], [0, 1], [1, 0], [2, 0], [2, 1]],
+            // [[0, 0], [1, 0], [1, 1], [1, 2], [0, 2]]
+        ],
+        Z: [
+            [[0, 0], [1, 0], [1, 1], [1, 2], [2, 2]], // Vertical default
+            [[2, 0], [0, 1], [1, 1], [2, 1], [0, 2]], // 90°
+            [[0, 0], [1, 0], [1, 1], [1, 2], [2, 2]], // 180°
+            [[2, 0], [0, 1], [1, 1], [2, 1], [0, 2]], // 270°
+            // // Flipped variations (commented out)
+            // [[2, 0], [1, 0], [1, 1], [1, 2], [0, 2]],
+            // [[0, -1], [0, 0], [1, 0], [1, 1], [2, 1]],
+            // [[2, 0], [1, 0], [1, 1], [1, 2], [0, 2]],
+            // [[0, -1], [0, 0], [1, 0], [1, 1], [2, 1]]
+        ],
+        V: [
+            [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2]], // Vertical default
+            [[0, 0], [0, 1], [0, 2], [1, 0], [2, 0]], // 90°
+            [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]], // 180°
+            [[0, 2], [1, 2], [2, 2], [2, 1], [2, 0]], // 270°
+            // // Flipped variations (commented out)
+            // [[0, 0], [1, 0], [2, 0], [0, 1], [0, 2]],
+            // [[0, 0], [0, 1], [0, 2], [1, 0], [2, 0]],
+            // [[2, 0], [2, 1], [2, 2], [1, 2], [0, 2]],
+            // [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]]
+        ],
+        W: [
+            [[0, 0], [1, 0], [1, 1], [2, 1], [2, 2]],
+            [[0, 2], [0, 1], [1, 1], [1, 0], [2, 0]],
+            [[0, 0], [0, 1], [1, 1], [1, 2], [2, 2]],
+            [[2, 2], [2, 1], [1, 1], [1, 0], [0, 0]]
+        ],
+        X: [[[1, 0], [0, 1], [1, 1], [1, 2], [2, 1]]] // X-piece has only one orientation
+    };
+    const colors = {
+        P: "#ff0000", // Bold Red
+        L: "#ff7f00", // Bold Orange
+        F: "#ffff00", // Bright Yellow
+        N: "#00ff00", // Bright Green
+        T: "#00ffff", // Bright Cyan
+        Y: "#007fff", // Bold Blue
+        U: "#0000ff", // Bright Blue/
+        Z: "#8b00ff", // Bold Purple
+        V: "#ff00ff", // Bold Magenta
+        W: "#ff1493", // Bright Pink
+        X: "#4b0082", // Indigo
+        I: "#800000",  // Bold Maroon
+        x: "#666666"  // Exclusion
+    };
+
+
+    const pastel_colors = {
+        P: "#ffb2b3", // Pastel Red
+        L: "#ffcc98", // Pastel Orange
+        F: "#ffffcc", // Pastel Yellow
+        N: "#b2ffcc", // Pastel Green
+        T: "#ccffff", // Pastel Cyan
+        Y: "#b2d9ff", // Pastel Blue
+        U: "#b2b3ff", // Pastel Light Blue
+        Z: "#dab2ff", // Pastel Purple
+        V: "#ffb2e6", // Pastel Magenta
+        W: "#ffb2d9", // Pastel Pink
+        X: "#c3b3ff", // Pastel Indigo
+        I: "#d8b3b3",  // Pastel Maroon
+        x: "#666666"  //
+    };
+
+    const App = () => {
+        const [gridSize, setGridSize] = useState({rows: 6, cols: 9});
+        const [debugMode, setDebugMode] = useState(new URLSearchParams(window.location.search).get('debug') === 'true');
+        const [grid, setGrid] = useState([]);
+        const [selectedPentominoes, setSelectedPentominoes] = useState(Object.keys(pentominoes)); // All selected by default
+        const [exclusions, setExclusions] = useState([]);
+        const [solveEnabled, setSolveEnabled] = useState(false);
+        const [availablePieces, setAvailablePieces] = useState(Object.keys(pentominoes));
+        const [isSolving, setIsSolving] = useState(false);
+        const [selectedDate, setSelectedDate] = useState(new Date());
+        const [draggedPiece, setDraggedPiece] = useState(null);
+        const [dragPosition, setDragPosition] = useState({x: 0, y: 0});
+        const [currentShape, setCurrentShape] = useState(0);
+        const [isValidPlacement, setIsValidPlacement] = useState(true);
+        const [isDragging, setIsDragging] = useState(false);
+
+        // Initialize the grid
+        useEffect(() => {
+            clearGrid();
+        }, [gridSize]);
+
+        const clearGrid = () => {
+            const newGrid = Array.from({length: gridSize.rows}, () =>
+                Array(gridSize.cols).fill(0)
+            );
+            setGrid(newGrid);
+            setExclusions([]);
+            setSolveEnabled(false);
+            setSelectedPentominoes(Object.keys(pentominoes));
+            togglePentominoSelection(pentominoes.X);
+            togglePentominoSelection(pentominoes.W);
+            setSelectedDate(new Date());
+            calculateExclusions();
+        };
+
+        // Update solve button state
+        useEffect(() => {
+            const totalCells = gridSize.rows * gridSize.cols;
+            const freeCells = totalCells - exclusions.length;
+            setSolveEnabled(freeCells % 5 === 0 && freeCells > 0);
+
+            const handleKeyPress = (e) => {
+                if (e.code === 'Space' && draggedPiece) {
+                    e.preventDefault();
+                    setCurrentShape((prev) => (prev + 1) % pentominoShapes[draggedPiece].length);
+                }
+            };
+
+            document.addEventListener('keydown', handleKeyPress);
+            return () => document.removeEventListener('keydown', handleKeyPress);
+        }, [gridSize, exclusions, draggedPiece]);
+
+        const handleDragStart = (piece, e) => {
+            if (!draggedPiece && availablePieces.includes(piece)) {
+                setDraggedPiece(piece);
+                setIsDragging(true);
+                document.body.classList.add('no-select');
+            }
+            setDragPosition({x: e.clientX, y: e.clientY});
+
+            const handleSpaceKey = (e) => {
+                if (e.code === 'Space' && draggedPiece) {
+                    e.preventDefault();
+                    const shapes = pentominoShapes[draggedPiece];
+                    if (shapes) {
+                        setCurrentShape(prev => (prev + 1) % shapes.length);
+                    }
+                }
+            };
+
+            document.addEventListener('keydown', handleSpaceKey);
+            document.addEventListener('mouseup', () => {
+                document.removeEventListener('keydown', handleSpaceKey);
+            }, {once: true});
+        };
+
+        const handleDragMove = (e) => {
+            if (!draggedPiece) return;
+
+            const gridElement = document.querySelector('.pentomino-grid');
+            const rect = gridElement.getBoundingClientRect();
+            const cellSize = 40;
+            const gridGap = 2;
+
+            // Calculate grid coordinates
+            const gridX = Math.floor((e.clientX - rect.left) / (cellSize + gridGap));
+            const gridY = Math.floor((e.clientY - rect.top) / (cellSize + gridGap + 2));
+
+            // Calculate snapped pixel positions
+            const snappedX = rect.left + (gridX * (cellSize + gridGap));
+            const snappedY = rect.top + (gridY * (cellSize + gridGap + 2));
+
+            setDragPosition({
+                x: snappedX,
+                y: snappedY,
+                gridX: gridX,
+                gridY: gridY
+            });
+
+            const isValid = validatePlacement(draggedPiece, currentShape, gridX, gridY);
+            setIsValidPlacement(isValid);
+        };
+
+        const handleDragEnd = () => {
+            if (isValidPlacement && draggedPiece && dragPosition.gridX !== undefined) {
+                const shape = pentominoShapes[draggedPiece][currentShape];
+                if (validatePlacement(draggedPiece, currentShape, dragPosition.gridX, dragPosition.gridY)) {
+                    const newGrid = [...grid];
+                    for (const [dx, dy] of shape) {
+                        const newX = dragPosition.gridX + dx;
+                        const newY = dragPosition.gridY + dy;
+                        if (newY >= 0 && newY < gridSize.rows && newX >= 0 && newX < gridSize.cols) {
+                            newGrid[newY][newX] = draggedPiece;
+                            const cellElement = document.getElementById(`cell-${newY}-${newX}`);
+                            if (cellElement) {
+                                cellElement.style.backgroundColor = colors[draggedPiece];
+                            }
+                        }
+                    }
+                    setGrid(newGrid);
+                    setAvailablePieces(prev => prev.filter(piece => piece !== draggedPiece));
+                }
+            }
+            setDraggedPiece(null);
+            setIsDragging(false);
+            setCurrentShape(0);
+            document.body.classList.remove('no-select');
+        };
+
+        const validatePlacement = (piece, shapeIndex, gridX, gridY) => {
+            const shapes = pentominoShapes[piece];
+            if (!shapes || !shapes[shapeIndex]) return false;
+
+            const shape = shapes[shapeIndex];
+            for (const [dx, dy] of shape) {
+                const newX = gridX + dx;
+                const newY = gridY + dy;
+
+                if (newX < 0 || newX >= gridSize.cols || newY < 0 || newY >= gridSize.rows) {
+                    return false;
+                }
+
+                const isExcluded = exclusions.some(
+                    ex => ex.row === newY && ex.col === newX
+                );
+                if (isExcluded || grid[newY][newX] !== 0) {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        const placePieceOnGrid = (piece, shapeIndex, gridX, gridY) => {
+            if (!validatePlacement(piece, shapeIndex, gridX, gridY)) return;
+
+            const newGrid = [...grid];
+            const shape = pentominoShapes[piece];
+
+            for (const [dx, dy] of shape) {
+                const newX = gridX + dx;
+                const newY = gridY + dy;
+                newGrid[newY][newX] = piece;
+            }
+
+            setGrid(newGrid);
+        };
+
+        const handleGridSizeChange = (type, value) => {
+            const newSize = {...gridSize, [type]: parseInt(value)};
+            setGridSize(newSize);
+        };
+
+        const togglePentominoSelection = (pentomino) => {
+            setSelectedPentominoes((prev) =>
+                prev.includes(pentomino)
+                    ? prev.filter((p) => p !== pentomino)
+                    : [...prev, pentomino]
+            );
+        };
+
+        const toggleExclusion = (row, col) => {
+            if (isSolving) return;
+
+            const cellElement = document.getElementById(`cell-${row}-${col}`);
+            if (cellElement && cellElement.style.backgroundColor) {
+                if (cellElement.style.backgroundColor !== 'white' &&
+                    cellElement.style.backgroundColor !== '#666666') {
+                    // Remove the piece from the grid
+                    const newGrid = [...grid];
+                    const pieceType = grid[row][col];
+
+                    // Find all cells with this piece and clear them
+                    for (let r = 0; r < gridSize.rows; r++) {
+                        for (let c = 0; c < gridSize.cols; c++) {
+                            if (newGrid[r][c] === pieceType) {
+                                newGrid[r][c] = 0;
+                                const cell = document.getElementById(`cell-${r}-${c}`);
+                                if (cell) cell.style.backgroundColor = 'white';
+                            }
+                        }
+                    }
+
+                    setGrid(newGrid);
+                    setAvailablePieces(prev => [...prev, pieceType]);
+                    return;
+                }
+            }
+
+            setExclusions((prev) => {
+                const index = prev.findIndex(
+                    (exclusion) => exclusion.row === row && exclusion.col === col
+                );
+                if (index === -1) {
+                    return [...prev, {row, col}];
+                } else {
+                    return prev.filter((_, i) => i !== index);
+                }
+            });
+        };
+
+        const handleSolve = async () => {
+            if (!solveEnabled || isSolving) return;
+
+            setIsSolving(true);
+            // Lock UI while solving; should call the pentomino solve API after sending
+            // current grid state.
+
+            const response = await fetch('/sessions/gridsolver', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    grid: grid,
+                    selectedPentominoes: selectedPentominoes,
+                    exclusions: exclusions
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to start solving session.');
+            }
+
+            const response_json = await response.json();
+            const sessionId = response_json.session_id;
+
+            const response_solve = await fetch(`/sessions/${sessionId}/solve`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            if (!response_solve.ok) {
+                throw new Error('Error during solving.');
+            }
+
+
+            // Call the progress API periodically
+            const intervalId = setInterval(async () => {
+                try {
+                    const progressResponse = await fetch(`/sessions/${sessionId}/progress`);
+
+                    const {
+                        grid: updatedGrid,
+                        solved: status,
+                        total_solutions_evaluated: tries
+                    } = await progressResponse.json();
+                    // Update the grid on the UI
+
+
+                    const coloredGrid = updatedGrid.map((row, rowIndex) =>
+                        row.map((cell, colIndex) => {
+                            const cellElement = document.getElementById(`cell-${rowIndex}-${colIndex}`);
+                            if (cellElement) {
+                                if (cell === '.') {
+                                    cellElement.style.backgroundColor = 'white';
+                                } else if (cell === 'x') {
+                                    cellElement.style.backgroundColor = '#666666';
+                                } else {
+                                    cellElement.style.backgroundColor = colors[cell] || 'gray'; // Use colors from the palette or fallback to gray
+                                }
+                            } else {
+                                console.warn(`Cell element not found: cell-${rowIndex}-${colIndex}`);
+                            }
+                            return cell;
+                        })
+                    );
+
+                    setGrid(coloredGrid);
+                    // Stop updating if the solution is complete
+                    if (status) {
+                        clearInterval(intervalId);
+                        setIsSolving(false);
+                    }
+                } catch (err) {
+                    console.error('Error during progress update:', err);
+                    clearInterval(intervalId);
+                    setIsSolving(false);
+                }
+
+            }, 20); // Check progress every second
+
+        };
+
+        const handleCancel = () => {
+            setIsSolving(false);
+            // Unlock UI; reset state if needed
+        };
+        const calculateExclusions = () => {
+            setExclusions([])
+            toggleExclusion(5, 8);
+
+            // Extract date components
+            const monthMatch = selectedDate.toLocaleDateString(undefined, {month: "short"}).toUpperCase();
+            const dayOfWeekMatch = selectedDate.toLocaleDateString(undefined, {weekday: "short"}).toUpperCase();
+            const dayOfMonthMatch = selectedDate.getDate().toString();
+
+            // Loop through the grid and find matching cells
+            for (let row = 0; row < gridSize.rows; row++) {
+                for (let col = 0; col < gridSize.cols; col++) {
+                    const cellText = grid_text[row][col];
+                    const cellElement = document.getElementById(`cell-${row}-${col}`);
+
+                    // Skip if cell already has a color (except exclusion gray)
+                    if (cellElement && cellElement.style.backgroundColor &&
+                        cellElement.style.backgroundColor !== 'white' &&
+                        cellElement.style.backgroundColor !== '#666666') {
+                        continue;
+                    }
+
+                    if (
+                    cellText === monthMatch ||
+                        cellText === dayOfWeekMatch ||
+                        cellText === dayOfMonthMatch
+                    ) {
+                        toggleExclusion(row, col);
+                    }
+                }
+            }
+
+            return exclusions;
+        };
+        return (
+            <div onMouseMove={handleDragMove} onMouseUp={handleDragEnd}>
+                {draggedPiece && (
+                    <div
+                        style={{
+                            position: 'fixed',
+                            left: dragPosition.x,
+                            top: dragPosition.y,
+                            pointerEvents: 'none',
+                            zIndex: 1000,
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(5, 40px)',
+                            gap: '2px'
+                        }}
+                    >
+                        {draggedPiece && pentominoShapes[draggedPiece] && pentominoShapes[draggedPiece][currentShape] && pentominoShapes[draggedPiece][currentShape].map(([dx, dy], i) => (
+                                <div
+                                key={i}
+                                style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    backgroundColor: colors[draggedPiece],
+                                    border: isValidPlacement ? '2px solid green' : '2px solid red',
+                                    position: 'absolute',
+                                    left: dx * (40 + 2) + 'px',
+                                    top: dy * (40 + 2) + 'px'
+                                }}
+                                />
+                        ))}
+                    </div>
+                )}
+                <div>
+                    <h1>Pentomino Solver</h1>
+
+                    {/* Date Picker */}
+                    <div style={{margin: "20px 0", textAlign: "left"}}>
+                        <h2>Select Date</h2>
+                        <div style={{display: "flex", justifyContent: "left", alignItems: "center"}}>
+
+                            <div style={{fontSize: "20px", fontWeight: "bold", minWidth: "200px"}}>
+                                {selectedDate.toLocaleDateString(undefined, {
+                                    weekday: "short",
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                })}
+                            </div>
+                            <button
+
+                                onClick={() => {
+                                    setSelectedDate((prevDate) => new Date(prevDate.setDate(prevDate.getDate() - 1)));
+                                    clearGrid();
+                                }}
+
+
+                                style={{
+                                    fontSize: "20px",
+                                    padding: "5px 10px",
+                                    marginRight: "10px",
+                                    cursor: "pointer"
+                                }}
+                            >
+                                -
+                            </button>
+                            <button
+                                onClick={() =>
+                                    {
+                                        setSelectedDate((prevDate) => new Date(prevDate.setDate(prevDate.getDate() + 1)))
+                                        clearGrid();
+                                    }
+                                }
+
+                                style={{
+                                    fontSize: "20px",
+                                    padding: "5px 10px",
+                                    marginLeft: "10px",
+                                    cursor: "pointer"
+                                }}
+                            >
+                                +
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Pentomino selector */}
+                    <div>
+                        <h2>Select Pentominoes</h2>
+                        <p>
+                            Select the pentominoes you want to solve. Minimum required:{" "}
+                            {Math.floor((gridSize.rows * gridSize.cols - exclusions.length) / 5)}.
+                        </p>
+                        <div style={{display: "flex", flexWrap: "wrap"}}>
+                            {Object.keys(pentominoes).map((pentomino) => {
+                                const shapes = {
+                                    P: [
+                                        [1, 1],
+                                        [1, 1],
+                                        [1, 0],
+                                    ],
+                                    L: [
+                                        [1, 0],
+                                        [1, 0],
+                                        [1, 0],
+                                        [1, 1],
+                                    ],
+                                    F: [
+                                        [0, 1, 1],
+                                        [1, 1, 0],
+                                        [0, 1, 0],
+                                    ],
+                                    N: [
+                                        [0, 1],
+                                        [0, 1],
+                                        [1, 1],
+                                        [1, 0],
+                                    ],
+                                    T: [
+                                        [1, 1, 1],
+                                        [0, 1, 0],
+                                        [0, 1, 0],
+                                    ],
+                                    Y: [
+                                        [0, 1],
+                                        [1, 1],
+                                        [0, 1],
+                                        [0, 1],
+                                    ],
+                                    U: [
+                                        [1, 0, 1],
+                                        [1, 1, 1],
+                                    ],
+                                    Z: [
+                                        [1, 1, 0],
+                                        [0, 1, 0],
+                                        [0, 1, 1],
+                                    ],
+                                    V: [
+                                        [1, 0, 0],
+                                        [1, 0, 0],
+                                        [1, 1, 1],
+                                    ],
+                                    W: [
+                                        [1, 0, 0],
+                                        [1, 1, 0],
+                                        [0, 1, 1],
+                                    ],
+                                    X: [
+                                        [0, 1, 0],
+                                        [1, 1, 1],
+                                        [0, 1, 0],
+                                    ],
+                                    I: [
+                                        [1],
+                                        [1],
+                                        [1],
+                                        [1],
+                                        [1],
+                                    ],
+                                };
+                                const isSelected = selectedPentominoes.includes(pentomino);
+                                const colorPalette = isSelected ? colors : pastel_colors;
+                                return (
+                                    <div
+                                        key={`shape-${pentomino}`}
+                                        style={{
+                                            margin: "10x",
+                                            cursor: "pointer",
+                                            opacity: isSelected ? 1 : 0.5,
+                                            border: isSelected ? "2px solid #000" : "2px dashed #ccc",
+                                            padding: "5px",
+                                            borderRadius: "5px",
+                                        }}
+                                        onMouseDown={(e) => handleDragStart(pentomino, e)}
+                                        onClick={(e) => {
+                                            if (!draggedPiece) {
+                                                togglePentominoSelection(pentomino);
+                                            }
+                                        }}
+                                    >
+                                        <p style={{textAlign: "center", margin: "0px"}}>{pentomino}</p>
+                                        <div
+                                            style={{
+                                                display: "grid",
+                                                gridTemplateColumns: `repeat(${shapes[pentomino][0].length}, 5px)`,
+                                                gap: "1px",
+                                            }}
+                                        >
+                                            {shapes[pentomino].map((row, rowIndex) =>
+                                                row.map((cell, cellIndex) => (
+                                                    <div
+                                                        key={`${pentomino}-${rowIndex}-${cellIndex}`}
+                                                        style={{
+                                                            width: "5px",
+                                                            height: "5px",
+                                                            backgroundColor: cell
+                                                                ? colorPalette[pentomino]
+                                                                : "transparent",
+                                                            border: cell ? "1px solid #ddd" : "none",
+                                                        }}
+                                                    ></div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                {debugMode && (
+                    <div style={{marginBottom: '10px', padding: '10px', backgroundColor: '#f0f0f0'}}>
+                        <h3>Debug Info</h3>
+                        <p>Dragging: {isDragging ? 'Yes' : 'No'}</p>
+                        <p>Current Position: {
+                            (dragPosition.gridX >= 0 && dragPosition.gridX < gridSize.cols && dragPosition.gridY >= 0 && dragPosition.gridY < gridSize.rows)
+                                ? `(${dragPosition.gridX}, ${dragPosition.gridY})`
+                                : '(N/A, N/A)'
+                        }</p>
+                        <p>Valid Placement: {isValidPlacement ? 'Yes' : 'No'}</p>
+                        <p>Current Shape Index: {currentShape}</p>
+                        <p>Dragged Piece: {draggedPiece || 'None'}</p>
+                    </div>
+                )}
+                {/* Grid */}
+                <div>
+                    <h2>Grid</h2>
+                    <div
+                        className="pentomino-grid"
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: `repeat(${gridSize.cols}, 40px)`,
+                            gap: "2px",
+                            position: "relative"
+                        }}
+                    >
+
+                        {grid.map((row, rowIndex) =>
+                            row.map((_, colIndex) => {
+                                const isExcluded = exclusions.some(
+                                    (exclusion) =>
+                                        exclusion.row === rowIndex &&
+                                        exclusion.col === colIndex
+                                );
+                                return (
+                                    <div
+                                        id={`cell-${rowIndex}-${colIndex}`}
+                                        key={`${rowIndex}-${colIndex}`}
+                                        onClick={() =>
+                                            toggleExclusion(
+                                                rowIndex,
+                                                colIndex
+                                            )
+                                        }
+                                        style={{
+                                            width: "40px",
+                                            height: "40px",
+                                            backgroundColor: isExcluded
+                                                ? "#666666"
+                                                : "#fff",
+                                            border: "1px solid #ddd",
+                                            cursor: isSolving
+                                                ? "default"
+                                                : "pointer",
+                                        }}
+                                    ><span>{grid_text[rowIndex][colIndex]}</span></div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+
+                {/* Exclusion list */}
+                <div>
+                    <h3>Exclusions</h3>
+                    <p>
+                        Click on a cell to exclude it from the solution.
+                    </p>
+                    <p>
+                        Exclusions required: {(gridSize.rows * gridSize.cols) % 5}
+                    </p>
+                    <ul>
+                        {exclusions.map(({row, col}) => (
+                            <li key={`${row}-${col}`}>
+                                Row: {row + 1}, Col: {col + 1}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+
+                {/* Solve / Cancel buttons */}
+                <div>
+                    <button
+                        onClick={handleSolve}
+                        disabled={!solveEnabled || isSolving}
+                    >
+                        Solve
+                    </button>
+                    {isSolving && (
+                        <button onClick={handleCancel}>Cancel</button>
+                    )}
+                </div>
+            </div>
+        )
+    };
+
+    ReactDOM.render(<App/>, document.getElementById("root"));
+
+</script>
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</body>
+
+</html>
