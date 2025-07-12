@@ -3,6 +3,9 @@ so that the available number of squares is divisible by 5. The pentominos will b
 This is a client server application demonstrating splits between a frontend UI making a pretty display of the solver. And 
 the engine that performs the resolution of the puzzle. 
 
+The datesolver is a play on the pentomino solver in which a fixed size grid is used, and Day, Day of Week and Month formulate 
+exclusions to show the current date. 
+
 Running the applicaiton:
 
 python pentomino_rest.py
